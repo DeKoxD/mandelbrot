@@ -1,0 +1,44 @@
+#fractal {
+  border: 1px solid black;
+  border-radius: 2px;
+  margin: 0px 0px 0px 0px;
+}
+
+.zoombtn {
+  margin: 0px 0px 0px 0px;
+  font-size: medium;
+  font-weight: bolder;
+  height: 25px;
+  width: 25px;
+  align-content: center;
+  justify-content: center;
+  border-radius: 3px;
+  position: relative;
+  border: 2px solid #555;
+  color: #555;
+  background: #ccc;
+}
+
+.zoombtn:hover {
+  color: #222;
+}
+
+.zoombtn:active {
+  color: #333;
+  background: #ddd;
+}
+
+.zoombtn:focus {
+  outline: none;
+}
+
+
+#zoom-in {
+  left: -31px;
+  top: -42px
+}
+
+#zoom-out {
+  left: -56px;
+  top: -14px
+}
