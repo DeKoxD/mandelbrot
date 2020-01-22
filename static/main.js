@@ -83,9 +83,9 @@ function loadCanvasFractal(canvas, extra, time) {
     const { centerx, centery, zoom, resx, resy } = canvas.dataset;
     const [resxextra, resyextra] = [Math.ceil(resx*extra), Math.ceil(resy*extra)];
     const ctx = canvas.getContext('2d');
-    if (refetch || !img) {console.log(refetch || !img)
+    if (refetch || !img) {
       fetchFunc(ctx, centerx, centery, zoom, resxextra, resyextra, offsetx, offsety, resx, resy);
-    } else {console.log("hmm")
+    } else {
       ctx.putImageData(img, offsetx-Math.ceil((resxextra-resx)/2), offsety-Math.ceil((resyextra-resy)/2));
     }
   }
