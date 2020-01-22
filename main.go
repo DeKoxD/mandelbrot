@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
 	"sync"
@@ -112,12 +113,13 @@ func BoolMapRoutine(m *mandelbrotSet, offset int, wg *sync.WaitGroup) {
 	wg.Done()
 }
 
-func (m *mandelbrotSet) BoolMap(iw ByteArrayMngr, center complex128, zoom float64, x, y, threads int) error {
+func (m *mandelbrotSet) BoolMap(center complex128, zoom float64, x, y, threads, it int, lim float64) error {
 	var wg sync.WaitGroup
-	m.x, m.y, m.iw, m.increment = x, y, iw, threads
+	m.x, m.y, m.increment, m.limSq = x, y, threads, lim*lim
+	m.iterations = 1 + int(float64(it)*math.Log1p(zoom))
 	m.dist = 1 / zoom
 	m.ul = center + complex(-m.dist*float64(x)/2+m.dist/2, m.dist*float64(y)/2-m.dist/2)
-	iw.Resize(x * y)
+	m.iw.Resize(x * y)
 	for i := 0; i < threads; i++ {
 		wg.Add(1)
 		go BoolMapRoutine(m, i, &wg)
@@ -127,8 +129,6 @@ func (m *mandelbrotSet) BoolMap(iw ByteArrayMngr, center complex128, zoom float6
 }
 
 func fractalHandler(it int, lim float64, threads int) func(http.ResponseWriter, *http.Request) {
-	mset := mandelbrotSet{iterations: it, limSq: lim * lim}
-	bc := boolColor{}
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		centerx, centery, zoom, resx, resy := r.FormValue("centerx"), r.FormValue("centery"), r.FormValue("zoom"), r.FormValue("resx"), r.FormValue("resy")
@@ -155,9 +155,11 @@ func fractalHandler(it int, lim float64, threads int) func(http.ResponseWriter, 
 		if err != nil {
 			return
 		}
-		mset.BoolMap(&bc, complex(ctx, cty), zm, x, y, threads)
+		b := &boolColor{}
+		mset := mandelbrotSet{iterations: it, limSq: lim * lim, iw: b}
+		mset.BoolMap(complex(ctx, cty), zm, x, y, threads, it, lim)
 		payload := response{ResX: x, ResY: y}
-		payload.Bool2Bitmap(bc.Vmap, threads)
+		payload.Bool2Bitmap(b.Vmap, threads)
 		js, err := json.Marshal(payload)
 		if err != nil {
 			return
@@ -169,8 +171,8 @@ func fractalHandler(it int, lim float64, threads int) func(http.ResponseWriter, 
 
 func main() {
 	threads := flag.Int("t", 1, "Number of threads")
-	limit := flag.Float64("l", 2, "Number of threads")
-	iterations := flag.Int("i", 200, "Max number of iterations")
+	limit := flag.Float64("l", 2, "Escaping limit")
+	iterations := flag.Int("i", 100, "Max number of iterations")
 	port := flag.String("p", "8080", "Port to serve on")
 	address := flag.String("a", "", "Address")
 	flag.Parse()
