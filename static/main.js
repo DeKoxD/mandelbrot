@@ -1,9 +1,13 @@
 import debounce from './debounce.js';
 
-document.addEventListener('DOMContentLoaded', event => {
+document.addEventListener('DOMContentLoaded', () => {
   var canvas = document.querySelector("#fractal");
-  var ctx = canvas.getContext('2d');
-  Object.assign(canvas.dataset, {
+  if(!canvas) {
+    return;
+  }
+  const dset = canvas.dataset;
+  // var ctx = canvas.getContext('2d');
+  Object.assign(dset, {
     centerx: -0.5,
     centery: 0,
     zoom: 200,
@@ -17,7 +21,7 @@ document.addEventListener('DOMContentLoaded', event => {
   var draw = loadCanvasFractal(canvas, 1.5, 300);
 
   canvas.addEventListener('onresize', () => {
-    Object.assign(canvas.dataset, {
+    Object.assign(dset, {
       resx: canvas.offsetWidth,
       resy: canvas.offsetHeight
     });
@@ -25,86 +29,89 @@ document.addEventListener('DOMContentLoaded', event => {
   });
   var zoom = (amount) => {
     return (amt) => {
-      canvas.dataset.zoom = parseFloat(canvas.dataset.zoom, 10) * (amount ? amount : amt);
+      dset.zoom = parseFloat(dset.zoom, 10) * (amount || amt);
       draw(true);
     };
   };
   document.querySelector("#zoom-in").onclick = zoom(1.25);
   document.querySelector("#zoom-out").onclick = zoom(1/1.25);
-  canvas.onmousewheel = (() => {
+
+  const wheelFunc = (() => {
     var zoomfunc = zoom();
     var inc = 1.25;
     return ((e) => {
+      e.preventDefault();
       zoomfunc(e.deltaY > 0 ? 1/inc : inc);
     });
   })();
+  canvas.onmousewheel = wheelFunc;
+
   canvas.onmousedown = () => {
-    if(canvas.dataset.mousedown === "false") {
-      canvas.dataset.mousedown = true;
+    if(dset.mousedown === "false") {
+      dset.mousedown = true;
     }
   };
   canvas.onmouseup = () => {
-    if(canvas.dataset.mousedown === "true") {
-      canvas.dataset.mousedown = false;
-      canvas.dataset.centerx = parseFloat(canvas.dataset.centerx, 10) -
-        (canvas.dataset.offsetx/canvas.dataset.zoom + 1/(2*canvas.dataset.zoom));
-      canvas.dataset.centery = parseFloat(canvas.dataset.centery, 10) +
-        (canvas.dataset.offsety/canvas.dataset.zoom + 1/(2*canvas.dataset.zoom));
-      canvas.dataset.offsetx = 0;
-      canvas.dataset.offsety = 0;
+    if(dset.mousedown === "true") {
+      dset.mousedown = false;
+      dset.centerx = parseFloat(dset.centerx, 10) -
+        (dset.offsetx/dset.zoom + 1/(2*dset.zoom));
+      dset.centery = parseFloat(dset.centery, 10) +
+        (dset.offsety/dset.zoom + 1/(2*dset.zoom));
+      dset.offsetx = 0;
+      dset.offsety = 0;
       draw(true);
     }
   };
   canvas.onmousemove = (e) => {
-    if(canvas.dataset.mousedown === "true") {
-      canvas.dataset.offsetx = parseInt(canvas.dataset.offsetx, 10) + e.movementX;
-      canvas.dataset.offsety = parseInt(canvas.dataset.offsety, 10) + e.movementY;
+    if(dset.mousedown === "true") {
+      dset.offsetx = parseInt(dset.offsetx, 10) + e.movementX;
+      dset.offsety = parseInt(dset.offsety, 10) + e.movementY;
       draw(false);
     }
   };
   draw(true);
 });
 
-function loadCanvasFractal(canvas, extra, time) {
+function loadCanvasFractal(canvas, extra, delay) {
   var img;
-  const fetchFunc = debounce(async (ctx, centerx, centery, zoom, resxextra, resyextra, offsetx, offsety, resx, resy) => {
-    const raw = await fetchFractal(centerx, centery, zoom, resxextra, resyextra, true, false);
-    img = new ImageData(resxextra, resyextra);
+  const ctx = canvas.getContext('2d');
+  const debFetchFractal = debounce(async (params, putImage) => {
+    const raw = await fetchFractal(params);
+    img = new ImageData(params.resx, params.resy);
     for(let i = 0, j = 0; i < img.data.length; i += 4, j++) {
       img.data[i + 0] = raw[j] ? 0 : 255;
       img.data[i + 1] = raw[j] ? 0 : 255;
       img.data[i + 2] = raw[j] ? 0 : 255;
       img.data[i + 3] = 255;
     }
-    ctx.putImageData(img, offsetx-Math.ceil((resxextra-resx)/2), offsety-Math.ceil((resyextra-resy)/2));
-  }, time);
+    putImage(img);
+  }, delay);
   return async function(refetch) {
-    const { offsetx, offsety } = canvas.dataset;
-    const { centerx, centery, zoom, resx, resy } = canvas.dataset;
+    const { centerx, centery, zoom, resx, resy, offsetx, offsety} = canvas.dataset;
     const [resxextra, resyextra] = [Math.ceil(resx*extra), Math.ceil(resy*extra)];
-    const ctx = canvas.getContext('2d');
+    const putImage = img => ctx.putImageData(img, offsetx-Math.ceil((resxextra-resx)/2), offsety-Math.ceil((resyextra-resy)/2));
     if (refetch || !img) {
-      fetchFunc(ctx, centerx, centery, zoom, resxextra, resyextra, offsetx, offsety, resx, resy);
+      debFetchFractal({centerx, centery, zoom, resx: resxextra, resy: resyextra }, putImage);
     } else {
-      ctx.putImageData(img, offsetx-Math.ceil((resxextra-resx)/2), offsety-Math.ceil((resyextra-resy)/2));
+      putImage(img);
     }
   }
 };
 
-async function fetchFractal(centerx, centery, zoom, resx, resy, trueArg, falseArg) {
+// params = { centerx, centery, zoom, resx, resy }
+async function fetchFractal(params) {
+  const urlParams = function() {
+    const { centerx, centery, zoom, resx, resy } = params;
+    return { centerx, centery, zoom, resx, resy };
+  }();
+
   var url = new URL(window.location.href + 'fractal');
-  var params = {
-    centerx,
-    centery,
-    zoom,
-    resx,
-    resy,
-  };
   Object.keys(params).forEach(key => url.searchParams.append(key, params[key]));
 
-  var result = await fetch(url, { method:'GET', });
+  var result = await fetch(url, { method:'GET', params});
   result = await result.json();
-  return base64bin2bool(result.Image, trueArg, falseArg).slice(0, result.ResX*result.ResY);
+  return base64bin2bool(result.Image).slice(0, result.ResX*result.ResY);
 }
 
 function bin2bool(input) {
@@ -115,9 +122,7 @@ function bin2bool(input) {
   return arr;
 };
 
-function base64bin2bool(input, trueArg, falseArg) {
-  var trueVal = trueArg === null ? true : trueArg;
-  var falseVal = falseArg === null ? false : falseArg;
+function base64bin2bool(input, trueVal = true, falseVal = false) {
   var img = [];
   let encImg = atob(input);
   for (let i = 0; i < encImg.length;i++) {
