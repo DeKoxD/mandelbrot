@@ -1,1 +1,1 @@
-# mandelbrot-fractal-server-viewer
+# Mandelbrot Fractal Viewer
