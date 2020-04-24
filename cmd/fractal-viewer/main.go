@@ -5,8 +5,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"net/http"
 	"strconv"
+
+	"github.com/DeKoxD/mandelbrot/mandelbrotocl"
 
 	"github.com/DeKoxD/boolbitmap"
 	"github.com/DeKoxD/mandelbrot"
@@ -17,7 +20,7 @@ type response struct {
 	Image      []byte
 }
 
-func fractalHandler(it int, lim float64, goroutines int) func(http.ResponseWriter, *http.Request) {
+func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGenerator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		centerx, centery, zoom, x, y := r.FormValue("centerx"), r.FormValue("centery"), r.FormValue("zoom"), r.FormValue("resx"), r.FormValue("resy")
@@ -45,10 +48,13 @@ func fractalHandler(it int, lim float64, goroutines int) func(http.ResponseWrite
 			return
 		}
 
-		set, err := mandelbrot.ComputeFractal(complex(ctx, cty), zm, resx, resy, goroutines, it, lim)
+		iterations := int(float64(it) * math.Log1p(zm))
+
+		set, err := fg.ComputeFractal(complex(ctx, cty), zm, resx, resy, iterations, lim)
 		if err != nil {
 			log.Println(err)
 		}
+
 		resp := response{
 			ResX: resx,
 			ResY: resy,
@@ -72,11 +78,23 @@ func main() {
 	iterations := flag.Int("i", 100, "Max number of iterations")
 	port := flag.String("p", "8080", "Port to serve on")
 	address := flag.String("a", "", "Address to serve")
+	opencl := flag.Bool("opencl", false, "Use GPU with OpenCL")
 	flag.Parse()
+
+	var fg mandelbrot.FractalGenerator
+	if *opencl {
+		fg = mandelbrotocl.FractalOpenCL{
+			LocalSize: 32,
+		}
+	} else {
+		fg = mandelbrot.Fractal{
+			Goroutines: *threads,
+		}
+	}
 
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./static/")))
-	mux.HandleFunc("/fractal", fractalHandler(*iterations, *limit, *threads))
+	mux.HandleFunc("/fractal", fractalHandler(*iterations, *limit, *threads, fg))
 
 	log.Printf("Serving on HTTP port: %s address: %s\nComputing on %v threads\n", *port, *address, *threads)
 	log.Fatal(http.ListenAndServe(*address+":"+*port, mux))
