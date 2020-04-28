@@ -20,6 +20,14 @@ type response struct {
 	Image      []byte
 }
 
+func calcIterations(iterations int, zoom float64) int {
+	return int(float64(iterations) * math.Log1p(zoom))
+}
+
+func calcZoom(zoom int) float64 {
+	return math.Pow(1.25, float64(zoom))
+}
+
 func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGenerator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
@@ -48,7 +56,7 @@ func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGe
 			return
 		}
 
-		iterations := int(float64(it) * math.Log1p(zm))
+		iterations := calcIterations(it, zm)
 
 		set, err := fg.ComputeFractal(complex(ctx, cty), zm, resx, resy, iterations, lim)
 		if err != nil {

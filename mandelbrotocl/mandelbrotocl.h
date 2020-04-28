@@ -33,31 +33,6 @@ const char *eval_coord_kernel =
 "	out[index] = true; \n"
 "}";
 
-const char *eval_line_kernel =
-"__kernel \n"
-"void eval_coord_kernel(int resx, double lim_sq, int its, double dist, double ulx, double uly, __global bool *out) { \n"
-"	int index = get_global_id(0) * resx; \n"
-"	double x = (double)(index - (index/resx * resx)) * dist + ulx; \n"
-"	double y = -(double)(index/resx) * dist + uly; \n"
-"	double zx, zy, tzx; \n"
-" for(int j = 0; j < resx; j++) {"
-"   out[index] = true; \n"
-"   zx = 0; \n"
-"   zy = 0; \n"
-" 	for(int i = 0; i < its; i++) { \n"
-"	  	tzx = zx; \n"
-"	  	zx = zx*zx - zy*zy + x; \n"
-"	  	zy = tzx*zy + zy*tzx + y; \n"
-"	  	if(zx*zx + zy*zy > lim_sq) { \n"
-"	  		out[index] = false; \n"
-"	  		break; \n"
-"	  	} \n"
-"  } \n"
-"  index++; \n"
-"  x += dist; \n"
-"	} \n"
-"}";
-
 void compute_fractal(bool *out, double cx, double cy, double dist, int resx, int resy, double lim_sq, int its, size_t local_size) {
 	const int out_size = resx*resy;
 
