@@ -9,10 +9,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/DeKoxD/mandelbrot/mandelbrotocl"
-
-	"github.com/DeKoxD/boolbitmap"
-	"github.com/DeKoxD/mandelbrot"
+	"github.com/DeKoxD/mandelbrot/pkg/boolbitmap"
+	"github.com/DeKoxD/mandelbrot/pkg/compute"
 )
 
 type response struct {
@@ -28,7 +26,7 @@ func calcZoom(zoom int) float64 {
 	return math.Pow(1.25, float64(zoom))
 }
 
-func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGenerator) func(http.ResponseWriter, *http.Request) {
+func fractalHandler(it int, lim float64, goroutines int, fg compute.FractalGenerator) func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		r.ParseForm()
 		centerx, centery, zoom, x, y := r.FormValue("centerx"), r.FormValue("centery"), r.FormValue("zoom"), r.FormValue("resx"), r.FormValue("resy")
@@ -58,7 +56,16 @@ func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGe
 
 		iterations := calcIterations(it, zm)
 
-		set, err := fg.ComputeFractal(complex(ctx, cty), zm, resx, resy, iterations, lim)
+		fp := compute.FractalParameters{
+			Center:     complex(ctx, cty),
+			Zoom:       zm,
+			ResX:       resx,
+			ResY:       resy,
+			Iterations: iterations,
+			Lim:        lim,
+		}
+
+		set, err := fg.ComputeFractal(fp)
 		if err != nil {
 			log.Println(err)
 		}
@@ -81,29 +88,39 @@ func fractalHandler(it int, lim float64, goroutines int, fg mandelbrot.FractalGe
 }
 
 func main() {
-	threads := flag.Int("t", 1, "Number of threads")
+	goroutines := flag.Int("r", 1, "Number of goroutines")
 	limit := flag.Float64("l", 2, "Escaping limit")
 	iterations := flag.Int("i", 100, "Max number of iterations")
 	port := flag.String("p", "8080", "Port to serve on")
 	address := flag.String("a", "", "Address to serve")
-	opencl := flag.Bool("opencl", false, "Use GPU with OpenCL")
+	opencl := flag.Bool("G", false, "Use GPU with OpenCL")
 	flag.Parse()
 
-	var fg mandelbrot.FractalGenerator
+	var fg compute.FractalGenerator
 	if *opencl {
-		fg = mandelbrotocl.FractalOpenCL{
+		fg = compute.FractalOpenCL{
 			LocalSize: 32,
 		}
 	} else {
-		fg = mandelbrot.Fractal{
-			Goroutines: *threads,
+		fg = compute.Fractal{
+			Goroutines: *goroutines,
 		}
 	}
-
+	// fg, _ = compute.Queue(fg, 5)
+	fg, _ = compute.Race(compute.Fractal{
+		Goroutines: *goroutines * 2,
+	}, compute.Fractal{
+		Goroutines: *goroutines,
+	})
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir("./static/")))
-	mux.HandleFunc("/fractal", fractalHandler(*iterations, *limit, *threads, fg))
+	mux.Handle("/", http.FileServer(http.Dir("./web/static/")))
+	mux.HandleFunc("/fractal", fractalHandler(*iterations, *limit, *goroutines, fg))
 
-	log.Printf("Serving on HTTP port: %s address: %s\nComputing on %v threads\n", *port, *address, *threads)
+	log.Printf("Serving on HTTP port: %s address: %s\n", *port, *address)
+	if *opencl {
+		log.Printf("Computing on GPU (OpenCL)\n")
+	} else {
+		log.Printf("Computing on %v goroutines\n", *goroutines)
+	}
 	log.Fatal(http.ListenAndServe(*address+":"+*port, mux))
 }

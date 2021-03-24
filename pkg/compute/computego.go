@@ -1,4 +1,4 @@
-package mandelbrot
+package compute
 
 import (
 	"errors"
@@ -9,22 +9,10 @@ type mconf struct {
 	fractal    *[]bool
 	iterations int
 	limSq      float64
-	resx, resy int
+	resX, resY int
 	dist       float64
 	upperLeft  complex128
 	increment  int
-}
-
-// FractalGenerator is a interface that wraps a fractal generator.
-type FractalGenerator interface {
-	ComputeFractal(
-		center complex128,
-		zoom float64,
-		resx,
-		resy,
-		iterations int,
-		lim float64,
-	) ([]bool, error)
 }
 
 // Fractal is a structure that implements FractalGenerator.
@@ -33,21 +21,22 @@ type Fractal struct {
 	Goroutines int
 }
 
-// ComputeFractal returns a boolean slice B with size resx * resy containing the computed fractal.
-// A point P(x, y) is part of the Mandelbrot Set if B[resx * y + x] is true.
-func (g Fractal) ComputeFractal(center complex128, zoom float64, resx, resy, iterations int, lim float64) ([]bool, error) {
+// ComputeFractal returns a boolean slice B with size resX * resY containing the computed fractal.
+// A point P(x, y) is part of the Mandelbrot Set if B[resX * y + x] is true.
+func (g Fractal) ComputeFractal(fp FractalParameters) ([]bool, error) {
 	var wg sync.WaitGroup
+	fractal := make([]bool, fp.ResX*fp.ResY)
+	dist := 1 / fp.Zoom
 	m := mconf{
-		resx:       resx,
-		resy:       resy,
-		limSq:      lim * lim,
+		resX:       fp.ResX,
+		resY:       fp.ResY,
+		limSq:      fp.Lim * fp.Lim,
 		increment:  g.Goroutines,
-		dist:       1 / zoom,
-		iterations: iterations,
+		dist:       dist,
+		iterations: fp.Iterations,
+		upperLeft:  fp.Center + complex(-dist*float64(fp.ResX)/2+dist/2, dist*float64(fp.ResY)/2-dist/2),
+		fractal:    &fractal,
 	}
-	m.upperLeft = center + complex(-m.dist*float64(resx)/2+m.dist/2, m.dist*float64(resy)/2-m.dist/2)
-	fractal := make([]bool, resx*resy)
-	m.fractal = &fractal
 	if g.Goroutines < 1 {
 		return nil, errors.New("mandelbrot: Goroutines cannot be less than 1")
 	}
@@ -64,14 +53,14 @@ func (m mconf) boolArrayRoutine(offset int, wg *sync.WaitGroup) {
 	var j, k int
 	carry := offset
 	for {
-		if k >= m.resy {
+		if k >= m.resY {
 			break
 		}
-		for j = carry; j < m.resx; j += m.increment {
+		for j = carry; j < m.resX; j += m.increment {
 			pixel, _ := m.evalCoord(complex(float64(j)*m.dist, float64(-k)*m.dist) + m.upperLeft)
-			(*m.fractal)[k*m.resx+j] = pixel
+			(*m.fractal)[k*m.resX+j] = pixel
 		}
-		carry = j - m.resx
+		carry = j - m.resX
 		k++
 	}
 	wg.Done()
