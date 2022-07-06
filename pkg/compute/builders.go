@@ -75,23 +75,3 @@ func Race(fgs ...FractalGenerator) (FractalGenerator, error) {
 	}
 	return r, nil
 }
-
-// TODO
-// type SelectItem struct {
-// 	Fg    FractalGenerator
-// 	MinIt int
-// }
-
-// type selectData struct {
-// 	items []SelectItem
-// }
-
-// func (sd *selectData) ComputeFractal(fp FractalParameters) ([]bool, error)
-
-// // Select
-// func Select(items ...SelectItem) (FractalGenerator, error) {
-// 	sd := &selectData{
-// 		items: items,
-// 	}
-// 	return sd, nil
-// }

@@ -106,12 +106,7 @@ func main() {
 			Goroutines: *goroutines,
 		}
 	}
-	// fg, _ = compute.Queue(fg, 5)
-	fg, _ = compute.Race(compute.Fractal{
-		Goroutines: *goroutines * 2,
-	}, compute.Fractal{
-		Goroutines: *goroutines,
-	})
+
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.Dir("./web/static/")))
 	mux.HandleFunc("/fractal", fractalHandler(*iterations, *limit, *goroutines, fg))
